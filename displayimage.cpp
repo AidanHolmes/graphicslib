@@ -467,10 +467,16 @@ bool DisplayImage::copy(DisplayImage &img, int mode, unsigned int offx, unsigned
 
   for (unsigned int cy=0; cy < m_height; cy++){
     for (unsigned int cx=0; cx < m_width; cx++){
-      if ((cx - offx) >= 0 && (cx - offx) < m_width && (cy - offy) >= 0 && (cy - offy) < m_height){
+      if ((cx - offx) >= 0 && (cx - offx) < img.m_width && (cy - offy) >= 0 && (cy - offy) < img.m_height){
 	// Within the drawable area for the parent image
-	despixel = (cx*(m_colourbitdepth/8))+(cy*m_stride) ;
-	srcpixel = (cx-offx)*((img.m_colourbitdepth/8)) + (cy-offy)*img.m_stride;
+	despixel = (cx*4)+(cy*m_stride) ;
+	//if (despixel > m_memsize){
+	//  fprintf(stderr, "Despixel outside memory. cx: %u, cy: %u\n", cx,cy) ;
+	//}
+	srcpixel = ((cx-offx)*4) + ((cy-offy)*img.m_stride);
+	//if (srcpixel > img.m_memsize){
+	//  fprintf(stderr, "Srcpixel outside memory. cx: %u, cy: %u, len: %u\n", cx-offx,cy-offy, img.m_memsize) ;
+	//}
 	if (mode == 1){ // XOR
 	  m_img[despixel] ^= img.m_img[srcpixel] ;
 	  m_img[despixel+1] ^= img.m_img[srcpixel+1] ;
