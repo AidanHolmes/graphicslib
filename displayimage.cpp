@@ -17,7 +17,8 @@ DisplayImage::DisplayImage()
   m_colourbitdepth = 1 ; // 1 bit
   m_fg_r = m_fg_g = m_fg_b = m_fg_a = 0;
   m_bg_r = m_bg_g = m_bg_b = m_bg_a = 255;
-
+  m_bg_grey = 255;
+  m_fg_grey = 0 ;
 }
 DisplayImage::~DisplayImage()
 {
@@ -45,7 +46,7 @@ uint16_t* DisplayImage::out565(uint16_t *outbuff, bool bRle)
   uint16_t *pOut = NULL, *p = NULL, last = 0, count = 0, colour = 0;
   if (!m_img) return NULL ; // no image
 
-  if (m_colourbitdepth == 32){
+  if (m_colourbitdepth == 32 || m_colourbitdepth == 24 || m_colourbitdepth == 8){
     // convert to 16 bit colour depth
     if (outbuff){
       pOut = outbuff ;
@@ -64,7 +65,11 @@ uint16_t* DisplayImage::out565(uint16_t *outbuff, bool bRle)
     if (!pOut) return NULL ;
 
     for (unsigned int i=0; i < m_width * m_height; i++){
-      colour = to565(m_img[(i*4)], m_img[(i*4)+1], m_img[(i*4)+2]);
+      if (m_colourbitdepth == 32 || m_colourbitdepth == 24){
+	colour = to565(m_img[(i*(m_colourbitdepth/8))], m_img[(i*(m_colourbitdepth/8))+1], m_img[(i*(m_colourbitdepth/8))+2]);
+      }else if (m_colourbitdepth == 8){
+	colour = to565(m_img[i], m_img[i], m_img[i]) ;
+      }
       if (bRle){
 	if (count > 0 && colour == last && count < 65535){
 	  count++;
@@ -155,7 +160,7 @@ unsigned int DisplayImage::getBlueDistribution(uint8_t intensity)
   return m_blue_distribution[intensity] ;
 }
 
-bool DisplayImage::loadJPG(char *szFilename)
+bool DisplayImage::loadJPG(char *szFilename, unsigned int bits)
 {
   struct jpeg_decompress_struct cinfo ;
   struct jpeg_error_mgr jerr ;
@@ -181,8 +186,16 @@ bool DisplayImage::loadJPG(char *szFilename)
       return false ;
     }
 
-    // This is the supported colour space we need
-    cinfo.out_color_space = JCS_RGB ;
+    if (bits == 32 || bits == 24 || bits == 16){
+      // This is the supported colour space we need
+      cinfo.out_color_space = JCS_RGB ;
+    }else if (bits == 8){
+      cinfo.out_color_space = JCS_GRAYSCALE ;
+    }else{
+      fprintf(stderr, "Unsupported colour bit depth\n") ;
+      jpeg_destroy_decompress(&cinfo) ;
+      return false ;
+    }
 
     jpeg_start_decompress(&cinfo) ;
 
@@ -192,27 +205,43 @@ bool DisplayImage::loadJPG(char *szFilename)
 					      cinfo.output_width * cinfo.output_components,
 					      1) ;
 
-    // Allocate for RGBA
-    if (!allocateImg(cinfo.output_width, cinfo.output_height, 32)){
+    if (cinfo.output_components != 1 && bits == 8){
+      fprintf(stderr, "Mismatch of expected compoents. JPEG lib provides %d for greyscale\n", cinfo.output_components) ;
+      return false ;
+    }
+
+    // Allocate for image
+    if (!allocateImg(cinfo.output_width, cinfo.output_height, bits)){
       fprintf(stderr, "Error allocating image memory\n") ;
       return false ;
     }
 
+    unsigned short n16bit = 0;
     //printf ("Allocateed image %d x %d\n", cinfo.output_width, cinfo.output_height) ;
     while (cinfo.output_scanline < cinfo.output_height){
       dataread = jpeg_read_scanlines(&cinfo, pJpegBuffer, 1) ;
       if (dataread <= 0) continue ; // should implement a check to ensure if this is blocked we can break out.
 
       //printf("Processing scanline %d, data read %d, image width %d\n", cinfo.output_scanline,dataread,cinfo.output_width) ;
-
       for (unsigned int i=0; i < m_width; i++){
-	basepixel = (i * 4) + ((cinfo.output_scanline-1) * m_stride) ;
+	basepixel = (i * bits/8) + ((cinfo.output_scanline-1) * m_stride) ;
 
-	m_img[basepixel] = pJpegBuffer[0][i*3] ;
-	m_img[basepixel+1] = pJpegBuffer[0][(i*3)+1] ;
-	m_img[basepixel+2] = pJpegBuffer[0][(i*3)+2] ;
-	m_img[basepixel+3] = 0 ;
-
+	if (bits == 32){
+	  m_img[basepixel] = pJpegBuffer[0][i*3] ;
+	  m_img[basepixel+1] = pJpegBuffer[0][(i*3)+1] ;
+	  m_img[basepixel+2] = pJpegBuffer[0][(i*3)+2] ;
+	  m_img[basepixel+3] = 0 ;
+	}else if(bits == 24){
+	  m_img[basepixel] = pJpegBuffer[0][i*3] ;
+	  m_img[basepixel+1] = pJpegBuffer[0][(i*3)+1] ;
+	  m_img[basepixel+2] = pJpegBuffer[0][(i*3)+2] ;	  
+	}else if(bits == 16){
+	  n16bit = to565(pJpegBuffer[0][i*3], pJpegBuffer[0][(i*3)+1], pJpegBuffer[0][(i*3)+2]);
+	  m_img[basepixel] = n16bit >> 8 ;
+	  m_img[basepixel+1] = 0x00FF & n16bit ;
+	}else if(bits == 8){
+	  m_img[basepixel] = pJpegBuffer[0][i] ;
+	}
       }
     }
   }catch(...){
@@ -406,6 +435,14 @@ bool DisplayImage::allocateImg(unsigned int width, unsigned int height, unsigned
     // RGBA
     stride = 4 * width ;
     size = stride * height ;
+  }else if(bitdepth == 16){
+    // RGB 565
+    stride = 2 * width ;
+    size = stride * height ;
+  }else if(bitdepth == 8){
+    // Greyscale
+    stride = width ;
+    size = stride * height ;
   }else{
     // Unsupported
     return false ;
@@ -438,21 +475,33 @@ bool DisplayImage::zeroImg()
 bool DisplayImage::eraseBackground()
 {
   unsigned int pixel = 0 ;
+  unsigned short n16bit = 0 ;
 
-  if (m_colourbitdepth == 32){
-    for (unsigned int cy=0; cy < m_height; cy++){
-      for (unsigned int cx=0; cx < m_width; cx++){
+  if (m_colourbitdepth == 1){
+    return zeroImg() ;
+  }
+
+  for (unsigned int cy=0; cy < m_height; cy++){
+    for (unsigned int cx=0; cx < m_width; cx++){
+      if (m_colourbitdepth == 32){
 	pixel = (cx*4)+(cy*m_stride) ;
 	m_img[pixel] = m_bg_r ;
 	m_img[pixel+1] = m_bg_g ;
 	m_img[pixel+2] = m_bg_b ;
 	m_img[pixel+3] = m_bg_a ;
+      }else if(m_colourbitdepth == 16){
+	pixel = (cx*2)+(cy*m_stride) ;
+	n16bit = to565(m_bg_r, m_bg_g, m_bg_b) ;
+	m_img[pixel] = n16bit >> 8;
+	m_img[pixel+1] = n16bit & 0x00FF ;
+      }else if(m_colourbitdepth == 8){
+	pixel = cx + (cy*m_stride) ;
+	m_img[pixel] = m_bg_grey ;
+      }else{
+	return false ; // Not supported
       }
-    }    
-  }else if(m_colourbitdepth == 1){
-    return zeroImg() ;
+    }
   }
-
   return true ;
 }
 
@@ -461,32 +510,32 @@ bool DisplayImage::copy(DisplayImage &img, int mode, unsigned int offx, unsigned
   unsigned int despixel = 0;
   unsigned int srcpixel = 0 ;
 
-  if (img.m_colourbitdepth != 32 || m_colourbitdepth != 32){
-    return false ; // only 32 bit images supported at the moment
+  // Colour bit depths should match. I could implement 8 to 32 and 32 to 8 conversion
+  // but this code grows quickly to include 16bit colour and other colour depths. 
+  // The rule needs to be that the bit depths match and any future need to mismatch images will require
+  // an image conversion routine to change bit depth.
+  if (img.m_colourbitdepth != m_colourbitdepth) return false ;
+  if (m_colourbitdepth != 32 && 
+      m_colourbitdepth != 16 && 
+      m_colourbitdepth != 8){
+    return false ; // only 32/16/8 bit images supported at the moment
   }
 
   for (unsigned int cy=0; cy < m_height; cy++){
     for (unsigned int cx=0; cx < m_width; cx++){
       if ((cx - offx) >= 0 && (cx - offx) < img.m_width && (cy - offy) >= 0 && (cy - offy) < img.m_height){
 	// Within the drawable area for the parent image
-	despixel = (cx*4)+(cy*m_stride) ;
-	//if (despixel > m_memsize){
-	//  fprintf(stderr, "Despixel outside memory. cx: %u, cy: %u\n", cx,cy) ;
-	//}
-	srcpixel = ((cx-offx)*4) + ((cy-offy)*img.m_stride);
-	//if (srcpixel > img.m_memsize){
-	//  fprintf(stderr, "Srcpixel outside memory. cx: %u, cy: %u, len: %u\n", cx-offx,cy-offy, img.m_memsize) ;
-	//}
+	despixel = (cx*(m_colourbitdepth/8))+(cy*m_stride) ;
+	srcpixel = ((cx-offx)*(m_colourbitdepth/8)) + ((cy-offy)*img.m_stride);
+
 	if (mode == 1){ // XOR
-	  m_img[despixel] ^= img.m_img[srcpixel] ;
-	  m_img[despixel+1] ^= img.m_img[srcpixel+1] ;
-	  m_img[despixel+2] ^= img.m_img[srcpixel+2] ;
-	  m_img[despixel+3] ^= img.m_img[srcpixel+3] ;
+	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
+	    m_img[despixel+cbd] ^= img.m_img[srcpixel+cbd] ;
+	  }
 	}else{ // Overwrite
-	  m_img[despixel] = img.m_img[srcpixel] ;
-	  m_img[despixel+1] = img.m_img[srcpixel+1] ;
-	  m_img[despixel+2] = img.m_img[srcpixel+2] ;
-	  m_img[despixel+3] = img.m_img[srcpixel+3] ;
+	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
+	    m_img[despixel+cbd] = img.m_img[srcpixel+cbd] ;
+	  }
 	}
       }
     }
@@ -496,14 +545,28 @@ bool DisplayImage::copy(DisplayImage &img, int mode, unsigned int offx, unsigned
 
 inline bool DisplayImage::setPixel(unsigned int x, unsigned int y, bool bSet)
 {
-  if (x >= m_width || y >= m_height) return false ; // out of image boundary
+  unsigned short n16bit = 0;
 
+  if (m_colourbitdepth == 16){
+    if (bSet)
+      n16bit = to565(m_fg_r, m_fg_g, m_fg_b) ;
+    else
+      n16bit = to565(m_bg_r, m_bg_g, m_bg_b) ;
+  }
+
+  if (x >= m_width || y >= m_height) return false ; // out of image boundary
+  
   if (bSet){
     if (m_colourbitdepth == 32){
       m_img[(x*4) + y*m_stride] = m_fg_r ;
       m_img[(x*4) + y*m_stride+1] = m_fg_g ;
       m_img[(x*4) + y*m_stride+2] = m_fg_b ;
       m_img[(x*4) + y*m_stride+3] = m_fg_a ;
+    }else if (m_colourbitdepth == 16){
+      m_img[(x*2) + y*m_stride] = n16bit >> 8 ;
+      m_img[(x*2) + y*m_stride+1] = 0x00FF & n16bit ;
+    }else if (m_colourbitdepth == 8){
+      m_img[x + y*m_stride] = m_fg_grey ;
     }else if (m_colourbitdepth == 1){
       m_img[(x/8)+y*m_stride] |= 1 << (x%8) ;
     }
@@ -513,6 +576,11 @@ inline bool DisplayImage::setPixel(unsigned int x, unsigned int y, bool bSet)
       m_img[(x*4) + y*m_stride+1] = m_bg_g ;
       m_img[(x*4) + y*m_stride+2] = m_bg_b ;
       m_img[(x*4) + y*m_stride+3] = m_bg_a ;
+    }else if (m_colourbitdepth == 16){
+      m_img[(x*2) + y*m_stride] = n16bit >> 8 ;
+      m_img[(x*2) + y*m_stride+1] = 0x00FF & n16bit ;
+    }else if (m_colourbitdepth == 8){
+      m_img[x + y*m_stride] = m_bg_grey ;
     }else if (m_colourbitdepth == 1){
       m_img[(x/8)+y*m_stride] &= ~(1 << (x%8)) ;
     }
@@ -541,6 +609,7 @@ DisplayFont::DisplayFont()
   m_nFontHeight = 0;
   m_nTotalChars = 0;
 }
+
 DisplayFont::~DisplayFont()
 {
   if (m_pBuffer) delete[] m_pBuffer ;

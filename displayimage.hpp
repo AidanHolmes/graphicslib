@@ -46,8 +46,9 @@ public:
   // executable binary
   bool loadXBM(unsigned int w, unsigned int h, unsigned char *bits) ;
 
-  // Load a 24 bit jpeg into the image object (becomes 32bit with alpha)
-  bool loadJPG(char *szFilename) ;
+  // Load a 24 bit jpeg into the image object (becomes 32bit with alpha for 32)
+  // Supports greyscale when bits is 8.
+  bool loadJPG(char *szFilename, unsigned int bits = 32) ;
   
   // Load a custom binary representation from file.
   // Use XBM2Bin utility to create
@@ -57,6 +58,7 @@ public:
   bool zeroImg() ;
 
   // Erase the background using the background colour
+  // Works with 32, 16, 8 and 1 bit colour depths
   bool eraseBackground() ;
   
   // create a character representation of the image for terminal
@@ -64,9 +66,11 @@ public:
   void printImg() ;
 
   // Set the value of a pixel. Use bSet to set as ON of OFF with true/false values
+  // Works for 32, 16, 8 and 1 bit colour depths
   bool setPixel(unsigned int x, unsigned int y, bool bSet) ;
 
-  // Set a colour pixel. setPixel also draws colour by using setBGCol and setFGCol
+  // Set a colour pixel. setPixel also draws colour by using setBGCol and setFGCol as an alternative
+  // This is only for 32 bit image formats.
   bool setColourPixel(unsigned int x, unsigned int y, unsigned char r, unsigned char g, unsigned char b) ;
 
   // Create distribution. Returns false if no image or colour depth unsupported
@@ -95,6 +99,10 @@ public:
   // Copy the image to this objects image. Can be offset by offx and offy
   bool copy(DisplayImage &img, int mode=0, unsigned int offx=0, unsigned int offy=0) ;
 
+  void setBGGrey(unsigned char grey){m_bg_grey = grey;};
+
+  void setFGGrey(unsigned char grey){m_fg_grey = grey;};
+
   void setBGCol(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha){m_bg_r = red;m_bg_g = green; m_bg_b=blue;m_bg_a = alpha;};
 
   void setFGCol(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha){m_fg_r = red;m_fg_g = green; m_fg_b=blue;m_fg_a = alpha;};
@@ -122,6 +130,7 @@ protected:
   
   unsigned char m_fg_r, m_fg_g, m_fg_b, m_fg_a;
   unsigned char m_bg_r, m_bg_g, m_bg_b, m_bg_a;
+  unsigned char m_fg_grey, m_bg_grey ;
 };
 
 class DisplayFont{
