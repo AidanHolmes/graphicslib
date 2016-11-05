@@ -25,12 +25,45 @@ DisplayImage::~DisplayImage()
   if (!m_bResourceImage && m_img) delete[] m_img ; // remove allocated image
 }
 
+DisplayImage& DisplayImage::operator=(const DisplayImage &img)
+{
+  m_img = NULL ;
+  m_width = img.m_width ;
+  m_height = img.m_height ;
+  m_bResourceImage = img.m_bResourceImage ;
+  m_memsize = img.m_memsize ;
+  m_stride = img.m_stride;
+  m_colourbitdepth = img.m_colourbitdepth ; 
+  m_fg_r = img.m_fg_r;
+  m_fg_g = img.m_fg_g;
+  m_fg_b = img.m_fg_b;
+  m_fg_a = img.m_fg_a;
+  m_bg_r = img.m_bg_r;
+  m_bg_g = img.m_bg_g;
+  m_bg_b = img.m_bg_b;
+  m_bg_a = img.m_bg_a;
+  m_bg_grey = img.m_bg_grey;
+  m_fg_grey = img.m_fg_grey;
+
+  if (m_bResourceImage){
+    m_img = img.m_img ;
+  }else{
+    if (createImage(m_width, m_height, m_colourbitdepth))
+      copy(img) ;
+    else
+      throw "Cannot create new image" ;
+  }
+
+  return *this ;
+}
+
+
 // Custom error handler for the jpeg library.
 static void jpgfile_error_exit(j_common_ptr cinfo)
 {
   // Display error message
   (*cinfo->err->output_message) (cinfo);
-
+  
   throw -1 ;
 }
 
@@ -423,6 +456,19 @@ bool DisplayImage::createImage(unsigned int width, unsigned int height, unsigned
 bool DisplayImage::allocateImg(unsigned int width, unsigned int height, unsigned int bitdepth)
 {
   unsigned int size = 0, stride =0;
+
+  if (width == 0 || height == 0){
+    // This is an error but can be treated as
+    // an empty image
+    if (m_img) delete[] m_img ;
+    m_img = NULL;
+    m_memsize = 0 ;
+    m_width = 0 ;
+    m_height = 0 ;
+    m_stride = 0 ;
+    return true ;
+  }
+    
   // packed byte file should hold ceil(x/8) * y bytes rounded up to whole byte per row.
   if (bitdepth == 1){
     stride = width/8 + (width%8?1:0);
@@ -505,7 +551,7 @@ bool DisplayImage::eraseBackground()
   return true ;
 }
 
-bool DisplayImage::copy(DisplayImage &img, int mode, unsigned int offx, unsigned int offy)
+bool DisplayImage::copy(const DisplayImage &img, int mode, unsigned int offx, unsigned int offy)
 {
   unsigned int despixel = 0;
   unsigned int srcpixel = 0 ;
@@ -531,6 +577,14 @@ bool DisplayImage::copy(DisplayImage &img, int mode, unsigned int offx, unsigned
 	if (mode == 1){ // XOR
 	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
 	    m_img[despixel+cbd] ^= img.m_img[srcpixel+cbd] ;
+	  }
+	}else if(mode == 2){ // Invert OR
+	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
+	    m_img[despixel+cbd] = ~(~(m_img[despixel+cbd]) | ~(img.m_img[srcpixel+cbd])) ;
+	  }
+	}else if(mode == 4){ // 'Max Colour' Transparency
+	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
+	    m_img[despixel+cbd] = (img.m_img[srcpixel+cbd] == 255)?m_img[despixel+cbd]:img.m_img[srcpixel+cbd] ;
 	  }
 	}else{ // Overwrite
 	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){

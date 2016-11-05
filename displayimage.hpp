@@ -19,6 +19,7 @@ class DisplayFont ;
 class DisplayImage{
 public:
   DisplayImage() ;
+  DisplayImage(const DisplayImage &img){ *this = img; };
   ~DisplayImage();
 #ifdef DISPLAY_SDD1306OLED
   friend class SDD1306OLED ;
@@ -27,6 +28,9 @@ public:
   friend class PCF8833LCD ;
 #endif
   friend class DisplayFont ;
+
+  // Copy image
+  DisplayImage& operator=(const DisplayImage &img) ;
 
   // Create blank image. Basically a call to allocateImg but with a follow up to
   // make the image blank. Will destroy old image if already exists.
@@ -97,7 +101,7 @@ public:
   uint16_t* out565(uint16_t *outbuff=NULL, bool bRle=false);
 
   // Copy the image to this objects image. Can be offset by offx and offy
-  bool copy(DisplayImage &img, int mode=0, unsigned int offx=0, unsigned int offy=0) ;
+  bool copy(const DisplayImage &img, int mode=0, unsigned int offx=0, unsigned int offy=0) ;
 
   void setBGGrey(unsigned char grey){m_bg_grey = grey;};
 
