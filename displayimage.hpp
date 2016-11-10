@@ -52,7 +52,7 @@ public:
 
   // Load a 24 bit jpeg into the image object (becomes 32bit with alpha for 32)
   // Supports greyscale when bits is 8.
-  bool loadJPG(char *szFilename, unsigned int bits = 32) ;
+  bool loadJPG(const char *szFilename, unsigned int bits = 32) ;
   
   // Load a custom binary representation from file.
   // Use XBM2Bin utility to create
@@ -102,6 +102,11 @@ public:
 
   // Copy the image to this objects image. Can be offset by offx and offy
   bool copy(const DisplayImage &img, int mode=0, unsigned int offx=0, unsigned int offy=0) ;
+
+  // Copy and rotate the image by 90 degrees clockwise.
+  // This will replace any previous images and reallocate to hold
+  // the rotated image.
+  bool copy_rotate90_right(const DisplayImage &img) ;
 
   void setBGGrey(unsigned char grey){m_bg_grey = grey;};
 

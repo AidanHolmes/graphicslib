@@ -193,7 +193,7 @@ unsigned int DisplayImage::getBlueDistribution(uint8_t intensity)
   return m_blue_distribution[intensity] ;
 }
 
-bool DisplayImage::loadJPG(char *szFilename, unsigned int bits)
+bool DisplayImage::loadJPG(const char *szFilename, unsigned int bits)
 {
   struct jpeg_decompress_struct cinfo ;
   struct jpeg_error_mgr jerr ;
@@ -548,6 +548,22 @@ bool DisplayImage::eraseBackground()
       }
     }
   }
+  return true ;
+}
+bool DisplayImage::copy_rotate90_right(const DisplayImage &img)
+{
+  // Create an identical image, but rotated
+  if (!createImage(img.m_height, img.m_width, img.m_colourbitdepth))
+    return false ;
+ 
+  unsigned char *p = m_img ;
+
+  for (unsigned int cx=0; cx < img.m_width; cx++){
+    for (unsigned int cy= img.m_height; cy > 0; cy--){
+      *p++ = img.m_img[(cx*(img.m_colourbitdepth/8))+((cy-1)*img.m_stride)];
+    }
+  }
+
   return true ;
 }
 
