@@ -115,6 +115,8 @@ public:
   void setBGCol(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha){m_bg_r = red;m_bg_g = green; m_bg_b=blue;m_bg_a = alpha;};
 
   void setFGCol(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha){m_fg_r = red;m_fg_g = green; m_fg_b=blue;m_fg_a = alpha;};
+  unsigned int get_width(){return m_width;};
+  unsigned int get_height(){return m_height;};
 
 protected:
   // Draw vertical lines. Used internally, but not needed for users as
