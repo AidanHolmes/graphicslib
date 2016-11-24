@@ -604,7 +604,7 @@ bool DisplayImage::copy(const DisplayImage &img, int mode, unsigned int offx, un
 	  }
 	}else if(mode == 8 && m_colourbitdepth == 8){ // Alpha blend mask. Src is a mask of alpha values, fg colour is applied
 	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
-	    m_img[despixel+cbd] = (img.m_img[srcpixel+cbd]*m_img[despixel+cbd])/255 + ((255-m_img[despixel+cbd])*m_fg_grey)/255;
+	    m_img[despixel+cbd] = (((img.m_img[srcpixel+cbd])*m_img[despixel+cbd])/255) + (((255-img.m_img[srcpixel+cbd])*m_fg_grey)/255);
 	  }
 	}else{ // Overwrite
 	  for (unsigned int cbd=0; cbd < m_colourbitdepth/8;cbd++){
