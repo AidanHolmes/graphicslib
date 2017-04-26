@@ -1,0 +1,5 @@
+*.o
+*~
+*.a
+pcf2bin
+xbm2bin
